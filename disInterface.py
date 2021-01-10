@@ -1,11 +1,19 @@
 from discord import Embed
 
-class DiscordInterface():
+
+class DiscordInterface:
     webhooks = []
+
     def __init__(self, whs):
         self.webhooks = whs
 
     def send_embed(self, sneaker, regime="instore"):
+        """
+        Отправляет информацию об указанном кроссовке в дискорд по всем вебхукам.
+        Параметр regime определяет формат доступа к кроссовку в магазине:
+        "instore" — кроссовок доступен в свободной продаже
+        "raffle" — кроссовок доступен только в розыгрыше
+        """
         print("SENT INFO ABOUT: ", sneaker.getName(), " with link ", sneaker.getLink())
         if regime == "instore":
             title = "Доступен в магазине"

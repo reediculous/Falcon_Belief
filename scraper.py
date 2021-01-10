@@ -10,8 +10,10 @@ from random import shuffle
 
 
 class BeliefSpider:
+    # Реализует получение информации о кроссовках из магазина beliefmoscow
+    # Класс работает со списком ссылок на страницы кроссовок links
+
     start_url = "https://beliefmoscow.com/collection/obuv"
-    position = 0
     links = []
     config = {
         'user': 'root',
@@ -23,26 +25,32 @@ class BeliefSpider:
         'raise_on_warnings': True,
     }
     sql = sqlInterface(config)
-    currentPos = 0
 
     whToken = "R6ju280blyKDX0uDNZY9vqZCU5rfabnaVko1pXRqsFaH3vUpUpg9z6X5_xNQ5OAHSijT"
     webhook_mine = discord.Webhook.partial(754438355483361340, whToken,
-                                       adapter=discord.RequestsWebhookAdapter())
+                                           adapter=discord.RequestsWebhookAdapter())
     whToken2 = "3pICtn1ro6V3kAeEGS7bs074jfXc3Nyx6VnY-M0yeY9PjVCJWesYbdePO1uk7ubB6uJo"
     webhook_dt = discord.Webhook.partial(693559291352973462, whToken2,
-                                     adapter=discord.RequestsWebhookAdapter())
+                                         adapter=discord.RequestsWebhookAdapter())
+
+    # Инициализируем экземляр класса для отправки сообщений в дискорд со списком вебхуков
     whInterface = disInterface.DiscordInterface([webhook_mine, webhook_dt])
 
     def __init__(self):
-        self.current_url = self.start_url
+        self.current_url = self.start_url  # current_url — ссылка на текущую страницу с продуктами
 
     def parseMainPage(self):
+        """
+        Для главной страницы с товарами возвращает словарь, где:
+        Ключ — наименование кроссовка
+        Значение — экземпляр класса SneakerPreview, содержащий информацию о кроссовке
+        """
         sneakers = {}
         if self.current_url != self.start_url:
             return
         try:
-            responce = request.urlopen(self.current_url)
-            html = responce.read().decode()
+            response = request.urlopen(self.current_url)
+            html = response.read().decode()
         except BaseException:
             return {}
         soup = BeautifulSoup(html, "html.parser")
@@ -63,10 +71,15 @@ class BeliefSpider:
         return sneakers
 
     def parsePage(self):
+        """
+        Для второй и последующих страниц с товарами возвращает словарь, где:
+        Ключ — наименование кроссовка
+        Значение — экземпляр класса SneakerPreview, содержащий информацию о кроссовке
+        """
         sneakers = {}
         try:
-            responce = request.urlopen(self.current_url)
-            jsonData = json.load(responce)
+            response = request.urlopen(self.current_url)
+            jsonData = json.load(response)
         except BaseException:
             return {}
         products = jsonData['products']
@@ -78,6 +91,9 @@ class BeliefSpider:
         return sneakers
 
     def shiftURL(self, back=False):
+        """
+        Переходит на следующую страницу, либо возвращается на стартовую
+        """
         if back:
             self.current_url = self.start_url
             return
@@ -89,23 +105,27 @@ class BeliefSpider:
             self.current_url = self.current_url[0:endPoint + 1:1] + str(pageNum + 1)
 
     def parseSneakerPage(self, link):
+        """
+        Для переданного адреса страницы с товаром возвращает экземпляр класса SneakerPreview,
+        содержащий информацию о кроссовке.
+        """
         try:
-            responce = request.urlopen(link)
-            html = responce.read().decode()
+            response = request.urlopen(link)
+            html = response.read().decode()
         except BaseException:
             return SneakerPreview(None, None, "", None, [])
         soup = BeautifulSoup(html, "html.parser")
         title = soup.select(".product-page__title")
         try:
             brand = title[0].text
-            brand = brand.replace("\n", "")
+            brand = brand.replace("\n", "")  # Наименование бренда
         except BaseException:
             brand = ""
         try:
             name = title[1].text
             name = name.replace("\n", "")
             name = name.replace("\t", "")
-            name = name.strip()
+            name = name.strip()  # Наименование кроссовка
         except BaseException:
             name = ""
         try:
@@ -113,23 +133,36 @@ class BeliefSpider:
             sizesHtml = sizesHtml.select("option")
             sizes = []
             for s in sizesHtml:
-                sizes.append(s.text)
+                sizes.append(s.text)  # Список строк — размеров кроссовка
         except BaseException:
             sizes = []
         try:
             price = soup.select_one(".product-page__price").text
             price = price.replace("\n", "")
-            price = price.strip()
+            price = price.strip()  # Цена кроссовка
         except BaseException:
             price = None
         try:
             image = soup.select_one(".product-gallery-item")
-            image = image.select_one("img")['src']
+            image = image.select_one("img")['src']  # Ссылка на изображение кроссовка
         except BaseException:
             image = ""
         return SneakerPreview(link, brand + " " + name, image, price, sizes)
 
     def run(self, regime="main"):
+        """
+        При режиме "main":
+        В цикле проходит по всем страницам с кроссовками, собирая о них информацию.
+        Если в итерации появляется кроссовок, которого не было в прошлой итерации, и если этот
+        наименование кроссовка содержит одно из ключевых слов, то добавляет ссылку на кроссовок
+        в список ссылок.
+        ============================================
+        При режиме "items":
+        В цикле проходит по всем страницам из списка ссылок, собирая информацию о кроссовках.
+        Если список размеров как-либо отличается от списка размеров на прошлой итерации, то
+        отправляет информацию об этом в дискорд по всем указанным вебхукам.
+        ============================================
+        """
         if regime == "main":
             previews = {}
             spider = BeliefSpider()
